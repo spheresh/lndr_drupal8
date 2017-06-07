@@ -39,28 +39,41 @@ class LndrServiceController extends ControllerBase {
 
     // 1. Let's check to see if the path is available in the system (Assuming path validation is done on Lndr side)
     // returns the same path back if the alias is available
-    $existing_alias = AliasManager::getPathByAlias($query['path']);
-    if ($existing_alias === $query['path']) {
-      $response_content = array(
-        'response' => array(
-          'type' => 'path_valid',
-          'message' => 'The chosen path is available',
-          'code' => '200',
-        ),
-      );
-      $response->setContent(json_encode($response_content));
-      return $response;
+    try {
+      $existing_alias = \Drupal::service('path.alias_manager')->getPathByAlias($query['path']);
+      if ($existing_alias === $query['path']) {
+        $response_content = array(
+          'response' => array(
+            'type' => 'path_valid',
+            'message' => 'The chosen path is available',
+            'code' => '200',
+          ),
+        );
+        $response->setContent(json_encode($response_content));
+        return $response;
+      }
+      else
+      {
+        $response_content = array(
+          'response' => array(
+            'type' => 'path_taken',
+            'message' => 'The requested path is not available for Lndr',
+            'code' => '403',
+          ),
+        );
+        $response->setContent(json_encode($response_content));
+        return $response;
+      }
     }
-    else
-    {
-      $response_content = array(
+    catch (InvalidArgumentException $e) {
+      $error_response = array(
         'response' => array(
-          'type' => 'path_taken',
-          'message' => 'The requested path is not available for Lndr',
-          'code' => '403',
+          'type' => 'error',
+          'message' => t($e->getMessage()),
+          'code' => '500',
         ),
       );
-      $response->setContent(json_encode($response_content));
+      $response->setContent(json_encode($error_response));
       return $response;
     }
   }
@@ -119,7 +132,7 @@ class LndrServiceController extends ControllerBase {
     $request = \Drupal::request();
     $headers = $request->headers->all();
 
-    if (!array_key_exists('Authorization', $headers)) {
+    if (!array_key_exists('authorization', $headers)) {
       // no token exist
       $response = array(
         'response' => array(
@@ -145,13 +158,13 @@ class LndrServiceController extends ControllerBase {
       return $response;
     }
 
-    $authorization = str_replace('Token token=', '', $headers['Authorization']);
-    if ($api_token !== $authorization) {
+    $authorization = str_replace('Token token=', '', $headers['authorization'][0]);
+    if ($api_token != $authorization) {
       // invalid token given
       $response = array(
         'response' => array(
           'type' => 'error',
-          'message' => t('Invalid token given'),
+          'message' => t('Invalid token given.'),
           'code' => '403',
         ),
       );

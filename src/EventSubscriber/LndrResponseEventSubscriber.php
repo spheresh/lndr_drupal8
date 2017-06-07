@@ -70,7 +70,7 @@ class LndrResponseEventSubscriber implements EventSubscriberInterface {
         'Access-Control-Allow-Origin' => '*',
         'Access-Control-Allow-Credentials' => true,
         'Access-Control-Allow-Methods' => 'GET, POST',
-        'Access-Control-Allow-Headers' => 'Authorization',
+        'Access-Control-Allow-Headers' => 'authorization',
       );
       foreach ($headers as $header => $value) {
         $response->headers->set($header, $value, TRUE);

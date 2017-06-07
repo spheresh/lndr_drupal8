@@ -55,7 +55,7 @@ class LndrController extends ControllerBase {
         $result = $response->getBody();
 
         $data = json_decode($result, true);
-        
+
         // Create or update alias in Drupal
         $this->upsert_alias($data['projects']);
 
