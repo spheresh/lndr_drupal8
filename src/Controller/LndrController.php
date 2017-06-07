@@ -27,19 +27,18 @@ class LndrController extends ControllerBase {
     // Get the API token
     $config = \Drupal::config('lndr.settings');
     $api_token = $config->get('lndr_token');
-    if($api_token === '') {
+    if($api_token == '') {
       return;
     }
 
     // loading dummy data if we are in debug mode
     if ($config->get('lndr_debug_mode')) {
       global $base_url;
-      $serviec_url = $base_url . '/examples/lndr/service';
-      $response = \Drupal::httpClient()->request('GET', $serviec_url);
+      $service_url = $base_url . '/examples/lndr/service';
+      $response = \Drupal::httpClient()->request('GET', $service_url);
 
       $result = $response->getBody();
       $data = json_decode($result, true);
-
       // Create or update alias in Drupal
       $this->upsert_alias($data['projects']);
 
@@ -56,7 +55,12 @@ class LndrController extends ControllerBase {
         $result = $response->getBody();
 
         $data = json_decode($result, true);
-        return $data['projects'];
+        
+        // Create or update alias in Drupal
+        $this->upsert_alias($data['projects']);
+
+        // Delete alias in Drupal
+        $this->remove_alias($data['projects']);
       }
       catch(ClientException $e) {
         \Drupal::logger('lndr')->notice($e->getMessage());
