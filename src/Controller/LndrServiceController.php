@@ -101,6 +101,19 @@ class LndrServiceController extends ControllerBase {
     if (substr($reserve_path,0, 1) != '/') {
       $reserve_path = '/' . $reserve_path;
     }
+
+    // Edge case: checking if this path is already reserved. (Seems Drupal doesn't care)
+    $system_path = \Drupal::service('path.alias_manager')->getPathByAlias($reserve_path);
+    if ($system_path === '/lndr/reserved') {
+      $content_response = array(
+        'type' => 'error',
+        'message' => 'The path requested is already reserved',
+        'code' => '500',
+      );
+      $response->setContent(json_encode($content_response));
+      return $response;
+    }
+
     try {
       $reserved_path = \Drupal::service('path.alias_storage')->save('/lndr/reserved', $reserve_path);
       if (!$reserved_path) {
@@ -122,7 +135,7 @@ class LndrServiceController extends ControllerBase {
         );
         $response->setContent(json_encode($content_response));
         return $response;
-      } 
+      }
     }
     catch (\InvalidArgumentException $e)
     {
