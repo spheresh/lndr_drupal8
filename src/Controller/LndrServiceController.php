@@ -65,7 +65,7 @@ class LndrServiceController extends ControllerBase {
         return $response;
       }
     }
-    catch (InvalidArgumentException $e) {
+    catch (\InvalidArgumentException $e) {
       $error_response = array(
         'response' => array(
           'type' => 'error',
@@ -96,20 +96,35 @@ class LndrServiceController extends ControllerBase {
     // Query array is stored in response message if everything is fine
     $query = $auth_response['response']['message'];
 
-    try {
-      \Drupal::service('path.alias_storage')->save('/lndr/reserved', $query['path']);
-      $content_response = array(
-        'response' => array(
-          'type' => 'path_valid',
-          'message' => 'The path has been successfully reserved',
-          'code' => '200',
-        ),
-      );
-      $response->setContent(json_encode($content_response));
-      return $response;
-
+    // if the path sent does not have starting slash
+    $reserve_path = urldecode($query['path']);
+    if (substr($reserve_path,0, 1) != '/') {
+      $reserve_path = '/' . $reserve_path;
     }
-    catch (InvalidArgumentException $e)
+    try {
+      $reserved_path = \Drupal::service('path.alias_storage')->save('/lndr/reserved', $reserve_path);
+      if (!$reserved_path) {
+        $content_response = array(
+          'type' => 'error',
+          'message' => 'Failed to reserve the path: ' . $reserve_path,
+          'code' => '500',
+        );
+        $response->setContent(json_encode($content_response));
+        return $response;
+      }
+      else {
+        $content_response = array(
+          'response' => array(
+            'type' => 'path_valid',
+            'message' => 'The path has been successfully reserved',
+            'code' => '200',
+          ),
+        );
+        $response->setContent(json_encode($content_response));
+        return $response;
+      } 
+    }
+    catch (\InvalidArgumentException $e)
     {
       // invalid token given
       $error_response = array(
