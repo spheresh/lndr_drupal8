@@ -259,6 +259,15 @@ class LndrController extends ControllerBase {
           }
         }
       }
+
+      // logo if there's any
+      foreach($html->find('a[class="image"]') as $key => $a) {
+        $bg_image = $a->{'background-image'};
+        if (isset($bg_image)) {
+          $html->find('a[class="image"]', $key)->{'background-image'} = $url . $bg_image;
+        }
+      }
+
       $page_response->headers->set('Content-Type', 'text/html; charset=utf-8');
       $page_response->setContent($html);
       return $page_response;
