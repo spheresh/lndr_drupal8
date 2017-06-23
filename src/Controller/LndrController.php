@@ -262,9 +262,9 @@ class LndrController extends ControllerBase {
 
       // logo if there's any
       foreach($html->find('a[class="image"]') as $key => $a) {
-        $bg_image = $a->{'background-image'};
+        $bg_image = $a->{'data-background-image'};
         if (isset($bg_image)) {
-          $html->find('a[class="image"]', $key)->{'background-image'} = $url . $bg_image;
+          $html->find('a[class="image"]', $key)->{'data-background-image'} = $url . $bg_image;
         }
       }
 
