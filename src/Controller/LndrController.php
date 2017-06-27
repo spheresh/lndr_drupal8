@@ -217,7 +217,8 @@ class LndrController extends ControllerBase {
       }
 
       // If there is a header for referral, let's take the last one
-      $referral = end($response->getHeader('x-guzzle-redirect-history'));
+      $last_referral = $response->getHeader('x-guzzle-redirect-history')
+      $referral = end($last_referral);
       if ($referral != '') {
         $url = $referral;
       }
