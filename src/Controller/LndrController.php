@@ -250,6 +250,7 @@ class LndrController extends ControllerBase {
         'small-block',
         'image',
         'image-slide',
+        'tile',
       );
 
       foreach($div_classes as $class) {
@@ -266,6 +267,14 @@ class LndrController extends ControllerBase {
         $bg_image = $a->{'data-background-image'};
         if (isset($bg_image)) {
           $html->find('a[class="image"]', $key)->{'data-background-image'} = $url . $bg_image;
+        }
+      }
+
+      // hero image
+      foreach($html->find('section[id="intro"]') as $key => $a) {
+        $bg_image = $a->{'data-background-image'};
+        if (isset($bg_image)) {
+          $html->find('section[id="intro"]', $key)->{'data-background-image'} = $url . $bg_image;
         }
       }
 
