@@ -233,8 +233,12 @@ class LndrController extends ControllerBase {
         $html->find('img', $key)->src = $url . $src;
       }
 
-      // prepend url to stylesheet, assuming we only have one stylesheet so far
-      $html->find('link[rel="stylesheet"]', 0)->href = $url . $html->find('link[rel="stylesheet"]', 0)->href;
+      // prepend url to internal stylesheets
+      foreach($html->find('link[rel="stylesheet"]') as $key => $element) {
+        if (substr($element->href, 0, 4) !== 'http') {
+          $html->find('link[rel="stylesheet"]', $key)->href = $url . $element->href;
+        }
+      }
 
       // prepend javascripts
       foreach($html->find('script') as $key => $element) {
