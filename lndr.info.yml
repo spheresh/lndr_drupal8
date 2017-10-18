@@ -3,5 +3,6 @@ type: module
 description: 'Lndr page bulider agent'
 package: Web services
 core: 8.x
+configure: lndr.admin_settings
 dependencies:
   - path
