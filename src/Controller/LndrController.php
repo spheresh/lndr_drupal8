@@ -5,6 +5,7 @@ namespace Drupal\lndr\Controller;
 use Drupal\Core\Controller\ControllerBase;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use GuzzleHttp\Exception\ClientException;
 
@@ -18,6 +19,86 @@ class LndrController extends ControllerBase {
    */
   protected function getModuleName() {
     return 'lndr';
+  }
+
+  /**
+   * Page callback to manually sync all of the lndr pages
+   * @return mixed
+   */
+  public function lndr_sync() {
+    // Sanitize $_GET['path']
+    $path = '';
+    if (isset($_GET['path'])) {
+      $path = \Drupal\Component\Utility\UrlHelper::filterBadProtocol($_GET['path']);
+    }
+
+    $batch = array(
+      'title' => t('Deploying Lndr page'),
+      'operations' => array(
+        array(
+          '\Drupal\lndr\Controller\LndrController::sync_processing',
+          array(array(1), $path),
+        ),
+      ),
+      'finished' => '\Drupal\lndr\Controller\LndrController::sync_processing_finish_callback',
+    );
+    batch_set($batch);
+
+    return batch_process();
+  }
+
+  /**
+   * Process the batch operation
+   * @param $ids
+   * @param $path
+   * @param $context
+   */
+  public static function sync_processing($ids, $path, &$context){
+    // @todo: making it truly batch in the future?
+    $message = 'Syncing Lndr pages... ';
+    $controller = new LndrController();
+    $controller->sync_path();
+    $results = array();
+    if ($path != '') {
+      // Check if that path has been updated from reserved
+      $url_alias = \Drupal::service('path.alias_storage')->load(['alias' => $path]);
+      if (!empty($url_alias)) {
+        if ($url_alias['source'] != '/lndr/reserved') {
+          $results['path_updated'] = $path;
+        }
+      }
+    }
+    $context['message'] = $message;
+    $context['results'] = $results;
+  }
+
+  /**
+   * Callback for batch finished operation
+   * @param $success
+   * @param $results
+   * @param $operations
+   */
+  function sync_processing_finish_callback($success, $results, $operations) {
+    // The 'success' parameter means no fatal PHP errors were detected. All
+    // other error management should be handled using 'results'.
+    if ($success) {
+      $message = t('Process complete');
+    }
+    else {
+      $message = t('Finished with an error.');
+
+    }
+    drupal_set_message($message);
+    // if there's a redirect
+    if (array_key_exists('path_updated', $results)) {
+      $response = new RedirectResponse(base_path() . $results['path_updated']);
+      $response->send();
+      return;
+    } else {
+      $response = new RedirectResponse(base_path());
+      $response->send();
+      return;
+    }
   }
 
   /**
@@ -120,6 +201,11 @@ class LndrController extends ControllerBase {
     }
   }
 
+  /**
+   * Removing url alias if the page has been unpublished or path changed
+   * from Lndr
+   * @param $projects
+   */
   private function remove_alias($projects) {
 
     global $base_url;
@@ -181,8 +267,17 @@ class LndrController extends ControllerBase {
   public function page($page_id) {
     // Make sure you don't trust the URL to be safe! Always check for exploits.
     if (!is_numeric($page_id)) {
-      // We will just show a standard "access denied" page in this case.
-      throw new AccessDeniedHttpException();
+      if ($page_id != 'reserved') {
+        // We will just show a standard "access denied" page in this case.
+        throw new AccessDeniedHttpException();
+      }
+      // When users hit the my_campaign -> lndr/reserved path, let's actually run the sync process
+      // This way we can deploy this page faster, we can also check if this path reservation is orphaned
+      $current_path = \Drupal::service('path.current')->getPath();
+      $alias = \Drupal::service('path.alias_manager')->getAliasByPath($current_path);
+
+      $response = new RedirectResponse(base_path() . '/lndr_sync?path=' . $alias);
+      $response->send();
     }
 
     $internal_url = LNDR_BASE . 'projects/' . $page_id;
