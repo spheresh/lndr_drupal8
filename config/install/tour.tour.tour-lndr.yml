@@ -2,6 +2,7 @@ id: tour-lndr
 module: lndr
 label: 'Lndr configuration'
 langcode: en
+status: true
 routes:
   - route_name: lndr.admin_settings
 tips:
