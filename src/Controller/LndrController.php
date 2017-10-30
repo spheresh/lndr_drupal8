@@ -90,12 +90,13 @@ class LndrController extends ControllerBase {
     }
     drupal_set_message($message);
     // if there's a redirect
+    global $base_url;
     if (array_key_exists('path_updated', $results)) {
-      $response = new RedirectResponse(base_path() . $results['path_updated']);
+      $response = new RedirectResponse($base_url . base_path() . $results['path_updated']);
       $response->send();
       return;
     } else {
-      $response = new RedirectResponse(base_path());
+      $response = new RedirectResponse($base_url . base_path());
       $response->send();
       return;
     }
