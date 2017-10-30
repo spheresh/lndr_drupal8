@@ -277,7 +277,8 @@ class LndrController extends ControllerBase {
       $current_path = \Drupal::service('path.current')->getPath();
       $alias = \Drupal::service('path.alias_manager')->getAliasByPath($current_path);
 
-      $response = new RedirectResponse(base_path() . '/lndr_sync?path=' . $alias);
+      global $base_url;
+      $response = new RedirectResponse($base_url . base_path() . '/lndr_sync?path=' . $alias);
       $response->send();
     }
 
