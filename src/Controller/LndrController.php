@@ -26,12 +26,11 @@ class LndrController extends ControllerBase {
    * @return mixed
    */
   public function lndr_sync() {
-    // Sanitize $_GET['path']
     $path = '';
     if (isset($_GET['path'])) {
+      // Sanitize $_GET['path']
       $path = \Drupal\Component\Utility\UrlHelper::filterBadProtocol($_GET['path']);
     }
-
     $batch = array(
       'title' => t('Deploying Lndr page'),
       'operations' => array(
@@ -43,7 +42,6 @@ class LndrController extends ControllerBase {
       'finished' => '\Drupal\lndr\Controller\LndrController::sync_processing_finish_callback',
     );
     batch_set($batch);
-
     return batch_process();
   }
 
@@ -55,14 +53,18 @@ class LndrController extends ControllerBase {
    */
   public static function sync_processing($ids, $path, &$context){
     // @todo: making it truly batch in the future?
-    $message = 'Syncing Lndr pages... ';
+    $message = 'Deploying Lndr pages... ';
     $controller = new LndrController();
     $controller->sync_path();
     $results = array();
+    // If we run this process with a $path passed in, it means it comes from a
+    // /lndr/reserved => /somepage
     if ($path != '') {
-      // Check if that path has been updated from reserved
+      // We check after running the sync, if that path has been updated from reserved to actual lndr page id
+      // Which means it has been published
       $url_alias = \Drupal::service('path.alias_storage')->load(['alias' => $path]);
       if (!empty($url_alias)) {
+        // We flag it and send it to the finishing process for proper redirect.
         if ($url_alias['source'] != '/lndr/reserved') {
           $results['path_updated'] = $path;
         }
@@ -86,16 +88,19 @@ class LndrController extends ControllerBase {
     }
     else {
       $message = t('Finished with an error.');
-
     }
     drupal_set_message($message);
     // if there's a redirect
     global $base_url;
+
+    // If we were sent from a placeholder (/lndr/reserved => path) but the page has been
+    // published, we redirect back to that alias so user can see the published page
     if (array_key_exists('path_updated', $results)) {
       $response = new RedirectResponse($base_url . base_path() . $results['path_updated']);
       $response->send();
       return;
     } else {
+      // if not, let's go home so we don't create an infinite loop
       $response = new RedirectResponse($base_url . base_path());
       $response->send();
       return;
