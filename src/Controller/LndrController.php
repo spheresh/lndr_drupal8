@@ -96,12 +96,12 @@ class LndrController extends ControllerBase {
     // If we were sent from a placeholder (/lndr/reserved => path) but the page has been
     // published, we redirect back to that alias so user can see the published page
     if (array_key_exists('path_updated', $results)) {
-      $response = new RedirectResponse($base_url . base_path() . $results['path_updated']);
+      $response = new RedirectResponse($base_url . $results['path_updated']);
       $response->send();
       return;
     } else {
       // if not, let's go home so we don't create an infinite loop
-      $response = new RedirectResponse($base_url . base_path());
+      $response = new RedirectResponse($base_url);
       $response->send();
       return;
     }
@@ -283,7 +283,7 @@ class LndrController extends ControllerBase {
       $alias = \Drupal::service('path.alias_manager')->getAliasByPath($current_path);
 
       global $base_url;
-      $response = new RedirectResponse($base_url . base_path() . '/lndr_sync?path=' . $alias);
+      $response = new RedirectResponse($base_url . '/lndr_sync?path=' . $alias);
       $response->send();
     }
 
