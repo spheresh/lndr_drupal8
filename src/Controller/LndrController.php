@@ -272,11 +272,7 @@ class LndrController extends ControllerBase {
    */
   public function page($page_id) {
     // Make sure you don't trust the URL to be safe! Always check for exploits.
-    if (!is_numeric($page_id)) {
-      if ($page_id != 'reserved') {
-        // We will just show a standard "access denied" page in this case.
-        throw new AccessDeniedHttpException();
-      }
+    if ($page_id == 'reserved') {
       // When users hit the my_campaign -> lndr/reserved path, let's actually run the sync process
       // This way we can deploy this page faster, we can also check if this path reservation is orphaned
       $current_path = \Drupal::service('path.current')->getPath();
@@ -286,7 +282,6 @@ class LndrController extends ControllerBase {
       $response = new RedirectResponse($base_url . '/lndr_sync?path=' . $alias);
       $response->send();
     }
-
     $internal_url = LNDR_BASE . 'projects/' . $page_id;
     return $this->import_page($internal_url);
   }
