@@ -4,3 +4,9 @@ services:
     arguments: ['@config.factory', '@path.alias_manager', '@path.matcher']
     tags:
       - {name: event_subscriber}
+  lndr.uninstall_validator:
+    class: Drupal\lndr\LndrUninstallValidator
+    tags:
+      - { name: module_install.uninstall_validator }
+    arguments: ['@entity_type.manager', '@string_translation']
+    lazy: true

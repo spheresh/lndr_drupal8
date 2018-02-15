@@ -1,0 +1,17 @@
+langcode: en
+status: true
+dependencies:
+  enforced:
+    module:
+      - lndr
+third_party_settings:
+  menu_ui:
+    available_menus: {  }
+    parent: ''
+name: 'Lndr: landing page'
+type: lndr_landing_page
+description: 'A landing page created in the Lndr platform'
+help: ''
+new_revision: false
+preview_mode: 1
+display_submitted: false

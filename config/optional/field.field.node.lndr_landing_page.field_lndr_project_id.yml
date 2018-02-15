@@ -1,0 +1,18 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_lndr_project_id
+    - node.type.lndr_landing_page
+id: node.lndr_landing_page.field_lndr_project_id
+field_name: field_lndr_project_id
+entity_type: node
+bundle: lndr_landing_page
+label: lndr_project_id
+description: 'DO NOT change, the project id associated with the Lndr page.'
+required: true
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string
