@@ -258,9 +258,7 @@ class LndrController extends ControllerBase {
     $results = $query->execute();
     foreach ($results as $result) {
       $path = explode('/', $result->source);
-      if (is_numeric($path[2])) {
         $data[$path[2]] = (array) $result;
-      }
     }
     return $data;
   }
