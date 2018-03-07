@@ -12,7 +12,7 @@ lndr.sync:
   defaults:
     _controller: '\Drupal\lndr\Controller\LndrController::lndr_sync'
   requirements:
-    _permission: 'access content'
+    _access: 'TRUE'
 
 # Service endpoints
 lndr.validate_path:
