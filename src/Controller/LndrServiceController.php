@@ -3,6 +3,8 @@
 namespace Drupal\lndr\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use \Drupal\node\Entity\Node;
+use \Drupal\Core\Entity\EntityStorageException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -141,32 +143,41 @@ class LndrServiceController extends ControllerBase {
       return $response;
     }
 
+    // Make the node reservation
+    $node_reservation_response = $this->reserve_node($reserve_path);
+    return $response->setContent(json_encode($node_reservation_response));
+
+  }
+
+  /**
+   * Save a new node
+   * @param $path_alias
+   * @param string $lndr_project_id
+   * @param string $title
+   * @return array
+   */
+  public function reserve_node($path_alias, $lndr_project_id = 'reserved', $title = '') {
     try {
-      $reserved_path = \Drupal::service('path.alias_storage')->save('/lndr/reserved', $reserve_path);
-      if (!$reserved_path) {
-        $content_response = array(
-          'type' => 'error',
-          'message' => 'Failed to reserve the path: ' . $reserve_path,
-          'code' => '500',
-        );
-        $response->setContent(json_encode($content_response));
-        return $response;
-      }
-      else {
-        $content_response = array(
-          'response' => array(
-            'type' => 'path_valid',
-            'message' => 'The path has been successfully reserved',
-            'code' => '200',
-          ),
-        );
-        $response->setContent(json_encode($content_response));
-        return $response;
-      }
+      $data = [
+        'type' => 'lndr_landing_page',
+        'title' => ($title == '') ? $path_alias : $title,
+        'path' => ['alias' => $path_alias,],
+        'field_lndr_project_id' => [
+          'value' => $lndr_project_id,
+        ],
+      ];
+      $node = Node::create($data);
+      $node->save();
+      $content_response = array(
+        'response' => array(
+          'type' => 'path_valid',
+          'message' => 'The path has been successfully reserved',
+          'code' => '200',
+        ),
+      );
+      return $content_response;
     }
-    catch (\InvalidArgumentException $e)
-    {
-      // invalid token given
+    catch(\Drupal\Core\Entity\EntityStorageException $e) {
       $error_response = array(
         'response' => array(
           'type' => 'error',
@@ -174,13 +185,13 @@ class LndrServiceController extends ControllerBase {
           'code' => '500',
         ),
       );
-      $response->setContent(json_encode($error_response));
-      return $response;
+      return $error_response;
     }
   }
 
   /**
    * performs various checks on the incoming web service request
+   * @param bool $check_path
    * @return array
    */
   private function service_auth($check_path = TRUE) {

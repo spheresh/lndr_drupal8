@@ -10,3 +10,7 @@ services:
       - { name: module_install.uninstall_validator }
     arguments: ['@entity_type.manager', '@string_translation']
     lazy: true
+  lndr.route_subscriber:
+    class: Drupal\lndr\Routing\RouteSubscriber
+    tags:
+      - {name: event_subscriber}

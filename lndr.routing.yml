@@ -7,14 +7,6 @@ lndr.admin_settings:
   requirements:
     _permission: 'administer nodes'
 
-# Main page route to display Lndr page
-lndr_page:
-  path: 'lndr/{page_id}'
-  defaults:
-    _controller: '\Drupal\lndr\Controller\LndrController::page'
-  requirements:
-    _permission: 'access content'
-
 lndr.sync:
   path: 'lndr_sync'
   defaults:

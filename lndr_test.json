@@ -1,18 +1,18 @@
 {
   "projects": [
     {
-      "id": "81",
-      "title": "Golf",
-      "description": "This is a smiple example project",
+      "id": "4gOuR",
+      "title": "Open Y test",
+      "description": "Open Y template test",
       "keywords": "simple, example, landing, hello, world",
-      "template": "Sporty",
-      "editor_url": "http://www.lndr.co/projects/81/edit",
-      "screenshot": "http:///www.lndr.co/project_files/81/screenshot.jpg?refresh=cb05d691b1a0ccc7eb4f426d",
-      "url": "http:///p.lndr/sporty",
-      "publish_url": "http://localhost:8888/sandbox_d8/golf",
-      "published": "false",
-      "created_at": "Thu, 18 May 2017 07:22:12 UTC +00:00",
-      "updated_at": "Mon, 22 May 2017 09:01:22 UTC +00:00"
+      "template": "Open Y – One",
+      "editor_url": "https://lndr.co/editor/openy-one/?project_id=4gOuR\u0026user_id=PmH6",
+      "screenshot": "https://lndr.co/project_files/369/screenshot.jpg",
+      "origin_url":"https://lndr.co/p/open-y-test",
+      "publish_url":"http://localhost:8888/lndr8/openytest",
+      "published": "true",
+      "created_at":"2017-12-05T12:36:15.928Z",
+      "updated_at":"2018-02-27T23:33:57.244Z"
     },
     {
       "id": "33",

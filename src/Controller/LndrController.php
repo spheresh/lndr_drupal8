@@ -3,6 +3,7 @@
 namespace Drupal\lndr\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use \Drupal\node\Entity\Node;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -127,10 +128,10 @@ class LndrController extends ControllerBase {
       $result = $response->getBody();
       $data = json_decode($result, true);
       // Create or update alias in Drupal
-      $this->upsert_alias($data['projects']);
+      $this->upsert_nodes($data['projects']);
 
       // Delete alias in Drupal
-      $this->remove_alias($data['projects']);
+      $this->remove_nodes($data['projects']);
     }
     else {
       try {
@@ -144,10 +145,10 @@ class LndrController extends ControllerBase {
         $data = json_decode($result, true);
 
         // Create or update alias in Drupal
-        $this->upsert_alias($data['projects']);
+        $this->upsert_nodes($data['projects']);
 
         // Delete alias in Drupal
-        $this->remove_alias($data['projects']);
+        $this->remove_nodes($data['projects']);
       }
       catch(ClientException $e) {
         \Drupal::logger('lndr')->notice($e->getMessage());
@@ -156,10 +157,10 @@ class LndrController extends ControllerBase {
   }
 
   /**
-   * Create or update alias in Drupal for Lndr pages
+   * Create or update node in Drupal for Lndr pages
    * @param $projects
    */
-  private function upsert_alias($projects) {
+  private function upsert_nodes($projects) {
     global $base_url;
     $drupal_pages = array();
     foreach ($projects as $project) {
@@ -171,48 +172,68 @@ class LndrController extends ControllerBase {
     if (empty($drupal_pages)) {
       return;
     }
+
     // Going through all the pages that are published to this URL
     foreach ($drupal_pages as $page) {
       $path_alias = substr($page['publish_url'], strlen($base_url));
-      $existing_alias_by_alias = \Drupal::service('path.alias_storage')->load(['alias' => $path_alias]);
-      if (!empty($existing_alias_by_alias)) {
+      // Looking to see if a system path exist based on the alias given
+      $existing_system_path_by_alias = \Drupal::service('path.alias_storage')->load(['alias' => $path_alias]);
+      if (!empty($existing_system_path_by_alias)) {
         // case 1. this alias was reserved for this page, UPDATE IT
-        if ($existing_alias_by_alias['source'] === '/lndr/reserved') {
-          $system_path = '/lndr/' . $page['id'];
-          // @todo: throw an error if not saving correctly.
-          \Drupal::service('path.alias_storage')->save($system_path, $path_alias, 'und', $existing_alias_by_alias['pid']);
-        }
-      }
-      else
-      {
-        // case 3. let's see if a previous alias is stored, but we updated to a new one from Lndr
-        $existing_alias_by_source = \Drupal::service('path.alias_storage')->load(['source' => '/lndr/' . $page['id']]);
-        if (!empty($existing_alias_by_source)) {
-          // Making sure that it is still on the same domain
-          if (substr($page['publish_url'], 0, strlen($base_url)) === $base_url) {
-            $_path = substr($page['publish_url'], strlen($base_url));
-            if ($_path !== $existing_alias_by_source['alias']) {
-              // @todo: throw an error if not saving correctly.
-              \Drupal::service('path.alias_storage')->save($existing_alias_by_source['source'], $_path, 'und', $existing_alias_by_source['pid']);
-            }
+        $nid = explode('/', $existing_system_path_by_alias['source']);
+        $nid = end($nid);
+        $node = \Drupal\node\Entity\Node::load($nid);
+        if (!empty($node)) {
+          // case 1. this node was reserved for this lndr page, we add a node data to sync with
+          // lndr project, as well as publish it.
+          $lndr_project_id = $node->get('field_lndr_project_id')->getValue();
+          // Check if the value is "reserved" which means it needs to be synced
+          if ($lndr_project_id[0]['value'] == 'reserved') {
+            $node->set('title', $page['title']);
+            $node->set('field_lndr_project_id', $page['id']);
+            $node->save();
           }
         }
-        else
-        {
-          // case 2. No Drupal alias exist at all, change from some other URL to Drupal domain URL
-          // @todo: throw an error if not saving correctly.
-          \Drupal::service('path.alias_storage')->save('/lndr/' . $page['id'], $path_alias);
+      } else {
+        // case 3. let's see if a previous node is stored, but we updated to a new path from Lndr
+        // within the same domain
+        $query = \Drupal::entityQuery('node')
+          ->condition('status', 1)
+          ->condition('type', 'lndr_landing_page')
+          ->condition('field_lndr_project_id', $page['id']);
+        $nids = $query->execute();
+        if (!empty($nids)) {
+          // Making sure that it is still on the same domain
+          if (substr($page['publish_url'], 0, strlen($base_url)) === $base_url) {
+            // Extracting the path
+            $_path = substr($page['publish_url'], strlen($base_url));
+            // Compare that path with the drupal node alias
+            // @todo: what if there are multiple drupal page sync'ed with the same lndr_project_id??
+            $nid = current($nids);
+            $node_alias = \Drupal::service('path.alias_storage')->load(['source' => '/node/' . $nid]);
+            if ($_path !== $node_alias['alias']) {
+              // update the alias
+              // @todo: throw an error?
+              \Drupal::service('path.alias_storage')->save('/node/' . $nid, $_path, $node_alias['langcode'], $node_alias['pid']);
+              // @todo: this is a workaround, we force node to save after we updated path alias because there's no easy way to do something like $node->set('path', ['alias' => 'something']);
+              $node = \Drupal\node\Entity\Node::load($nid);
+              $node->save();
+            }
+          }
+        } else {
+          // case 2. No Drupal alias exist at all, changed from some other URL to Drupal domain URL
+          // Create a new node and add the relationship
+          \Drupal\lndr\Controller\LndrServiceController::reserve_node($path_alias, $page['id'], $page['title']);
         }
       }
-    }
+    } //end of foreach
   }
 
   /**
-   * Removing url alias if the page has been unpublished or path changed
-   * from Lndr
+   * Remove nodes that are removed from Lndr
    * @param $projects
    */
-  private function remove_alias($projects) {
+  private function remove_nodes($projects) {
 
     global $base_url;
     // Re-format the projects a bit to give them keys as project id
@@ -221,48 +242,33 @@ class LndrController extends ControllerBase {
       $_projects[$project['id']] = $project;
     }
 
-    // Get all alias lndr uses (lndr/[project_id])
-    $existing_alias = $this->load_lndr_alias();
-    if (empty($existing_alias)) {
+    // Load all of the nodes that have existing lndr project ids
+    $query = \Drupal::entityQuery('node')
+      ->condition('status', 1)
+      ->condition('type', 'lndr_landing_page')
+      ->condition('field_lndr_project_id', 'reserved', '!=');
+    $nids = $query->execute();
+
+    // nothing to remove
+    if (empty($nids)) {
       return;
     }
 
-    foreach ($existing_alias as $project_id => $alias) {
-      // Case 5. Remove any local path not presented in the web service (deleted or unpublished on Lndr)
-      if (!array_key_exists($project_id, $_projects)) {
-        // @todo: catch error when delete is unsuccessful
-        \Drupal::service('path.alias_storage')->delete(['pid' => $alias['pid']]);
-      }
-      else
-      {
-        // Case 4. There is a local alias, however, remotely it has been changed to something not on this Domain
-        if (substr($_projects[$project_id]['publish_url'], 0, strlen($base_url)) !== $base_url) {
-          // @todo: catch error when delete is unsuccessful
-          \Drupal::service('path.alias_storage')->delete(['pid' => $alias['pid']]);
+    $nodes = \Drupal\node\Entity\Node::loadMultiple($nids);
+    foreach ($nodes as $node) {
+      $lndr_project_id = $node->get('field_lndr_project_id')->getValue();
+      $lndr_project_id = $lndr_project_id[0]['value'];
+      // Case 5. Remove any node with project ids that is not presented in the web service
+      // We assume that project has been removed from Lndr
+      if (!array_key_exists($lndr_project_id, $_projects)) {
+        $node->delete();
+      } else {
+        // Case 4. There is a local node, however, remotely it has been changed to something not in this domain
+        if (substr($_projects[$lndr_project_id]['publish_url'], 0, strlen($base_url)) !== $base_url) {
+          $node->delete();
         }
       }
     }
-  }
-
-  /**
-   * Helper function that loads all of the URL alias that has a source of lndr/%
-   * that are not reserved URL.
-   * @return array
-   */
-  private function load_lndr_alias() {
-    $data = array();
-    $query = db_select('url_alias', 'u')
-      ->fields('u', array('pid', 'source', 'alias'))
-      ->condition('u.source', '/lndr/%', 'LIKE');
-
-    $results = $query->execute();
-    foreach ($results as $result) {
-      $path = explode('/', $result->source);
-      if (is_numeric($path[2])) {
-        $data[$path[2]] = (array) $result;
-      }
-    }
-    return $data;
   }
 
   /**
