@@ -4,9 +4,11 @@ namespace Drupal\lndr\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
 use \Drupal\node\Entity\Node;
+use Drupal\node\NodeInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\RedirectResponse;
+use Drupal\Core\Routing\TrustedRedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use GuzzleHttp\Exception\ClientException;
 
@@ -20,6 +22,26 @@ class LndrController extends ControllerBase {
    */
   protected function getModuleName() {
     return 'lndr';
+  }
+
+  /**
+   * Redirect the lndr_edit/{nid} path to external URL
+   * @param NodeInterface $node
+   * @return RedirectResponse
+   */
+  public function lndr_edit(NodeInterface $node) {
+      if ($node->bundle() != 'lndr_landing_page') {
+        return new RedirectResponse(\Drupal::url('<front>', [], ['absolute' => TRUE]));
+      }
+      // lndr project, as well as publish it.
+      $lndr_project_id = $node->get('field_lndr_project_id')->getValue();
+      if (!empty($lndr_project_id)) {
+        if ($lndr_project_id[0]['value'] != 'reserved') {
+          $url = 'https://lndr.co/projects/' . $lndr_project_id[0]['value'] . '/edit';
+          return new TrustedRedirectResponse($url);
+        }
+      }
+  return new RedirectResponse(\Drupal::url('<front>', [], ['absolute' => TRUE]));
   }
 
   /**

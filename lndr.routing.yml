@@ -42,3 +42,10 @@ lndr.example_service:
     _controller: '\Drupal\lndr\Controller\LndrExampleController::service'
   requirements:
     _permission: 'access content'
+
+entity.node.lndr_edit:
+  path: 'lndr_edit/{node}'
+  defaults:
+    _controller: '\Drupal\lndr\Controller\LndrController::lndr_edit'
+  requirements:
+    _permission: 'edit any lndr_landing_page content'

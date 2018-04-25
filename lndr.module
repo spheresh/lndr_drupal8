@@ -6,6 +6,9 @@
  */
 
 use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\lndr\EntityTypeInfo;
+
 
 const LNDR_BASE = 'https://lndr.co/';
 const LNDR_API_GET_PROJECT = 'https://lndr.co/v1/projects';
@@ -48,4 +51,22 @@ function lndr_help($route_name, RouteMatchInterface $route_match) {
 function lndr_cron() {
   $controller = new \Drupal\lndr\Controller\LndrController();
   $controller->sync_path();
+}
+
+/**
+ * Implements hook_entity_operation().
+ */
+function lndr_entity_operation(EntityInterface $entity) {
+  return \Drupal::service('class_resolver')
+    ->getInstanceFromDefinition(EntityTypeInfo::class)
+    ->entityOperation($entity);
+}
+
+/**
+ * Implements hook_entity_type_alter().
+ */
+function lndr_entity_type_alter(array &$entity_types) {
+  return \Drupal::service('class_resolver')
+    ->getInstanceFromDefinition(EntityTypeInfo::class)
+    ->entityTypeAlter($entity_types);
 }

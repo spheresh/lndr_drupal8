@@ -14,3 +14,9 @@ services:
     class: Drupal\lndr\Routing\RouteSubscriber
     tags:
       - {name: event_subscriber}
+  lndr.path_processor:
+    class: Drupal\lndr\PathProcessor\LndrPathProcessor
+    # Optionally provide arguments.
+    #arguments: ['@config.factory', '@entity_type.manager', '@current_user']
+    tags:
+      - { name: path_processor_outbound, priority: -10}
