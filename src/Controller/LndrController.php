@@ -2,8 +2,12 @@
 
 namespace Drupal\lndr\Controller;
 
+use Drupal\Component\Utility\UrlHelper;
+use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Controller\ControllerBase;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -12,7 +16,25 @@ use GuzzleHttp\Exception\ClientException;
 /**
  * Controller routines for page example routes.
  */
-class LndrController extends ControllerBase {
+class LndrController extends ControllerBase implements ContainerInjectionInterface {
+
+  protected $config;
+
+  /**
+   * Function contractor.
+   */
+  public function __construct(ImmutableConfig $config) {
+    $this->config = $config;
+  }
+
+  /**
+   * Implementation of container injection.
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('config.factory')->get('lndr.settings')
+    );
+  }
 
   /**
    * {@inheritdoc}
@@ -35,11 +57,11 @@ class LndrController extends ControllerBase {
       'title' => t('Deploying Lndr page'),
       'operations' => array(
         array(
-          '\Drupal\lndr\Controller\LndrController::sync_processing',
+          array($this, 'sync_processing'),
           array(array(1), $path),
         ),
       ),
-      'finished' => '\Drupal\lndr\Controller\LndrController::sync_processing_finish_callback',
+      'finished' => array($this, 'sync_processing_finish_callback'),
     );
     batch_set($batch);
     return batch_process();
@@ -51,11 +73,10 @@ class LndrController extends ControllerBase {
    * @param $path
    * @param $context
    */
-  public static function sync_processing($ids, $path, &$context){
+  public function sync_processing($ids, $path, &$context){
     // @todo: making it truly batch in the future?
     $message = 'Deploying Lndr pages... ';
-    $controller = new LndrController();
-    $controller->sync_path();
+    $this->sync_path();
     $results = array();
     // If we run this process with a $path passed in, it means it comes from a
     // /lndr/reserved => /somepage
@@ -281,7 +302,7 @@ class LndrController extends ControllerBase {
       $response->send();
     }
     $internal_url = LNDR_BASE . 'projects/' . $page_id;
-    return $this->import_page($internal_url);
+    return $this->import_page($page_id, $internal_url);
   }
 
   /**
@@ -289,7 +310,7 @@ class LndrController extends ControllerBase {
    * @param $url
    * @return bool|Response
    */
-  private function import_page($url) {
+  private function import_page($page_id, $url) {
     $page_response = new Response();
     try {
       $response = \Drupal::httpClient()->request('GET', $url, [
@@ -322,39 +343,7 @@ class LndrController extends ControllerBase {
       module_load_include('inc', 'lndr', 'simple_html_dom');
       $html = str_get_html((string)$response->getBody());
 
-      // prepend the url of the page to all of the images
-      foreach($html->find('img') as $key => $element) {
-        $src= $element->src;
-        $html->find('img', $key)->src = $url . $src;
-      }
-
-      // prepend url to internal stylesheets
-      foreach($html->find('link[rel="stylesheet"]') as $key => $element) {
-        if (substr($element->href, 0, 4) !== 'http') {
-          $html->find('link[rel="stylesheet"]', $key)->href = $url . $element->href;
-        }
-      }
-
-      // prepend javascripts
-      foreach($html->find('script') as $key => $element) {
-        $src = $element->src;
-        if (isset($src)) {
-          $html->find('script', $key)->src = $url . $src;
-        }
-      }
-
-      $elements = array(
-        'div',
-        'a',
-        'section',
-      );
-
-      foreach ($elements as $element) {
-        foreach ($html->find($element . '[data-background-image]') as $key => $_element) {
-          $bg_image = $_element->{'data-background-image'};
-          $html->find($element . '[data-background-image]', $key)->{'data-background-image'} = $url . $bg_image;
-        }
-      }
+      $this->htmlPagePreprocess($page_id, $html);
 
       $page_response->headers->set('Content-Type', 'text/html; charset=utf-8');
       $page_response->setContent($html);
@@ -364,4 +353,89 @@ class LndrController extends ControllerBase {
       return $page_response;
     }
   }
+
+  private function htmlPagePreprocess($page_id, $html) {
+    $selectors = implode(', ', array(
+      '[data-background-image]',
+      'img',
+      'link[rel="stylesheet"]',
+      'script',
+    ));
+    foreach ($html->find($selectors) as $key => $element) {
+      /* @var \simple_html_dom_node $element */
+      foreach (array('src', 'href', 'data-background-image') as $source_attr) {
+        if (!$element->hasAttribute($source_attr)) {
+          continue;
+        }
+        $file_path_info = parse_url($element->{$source_attr});
+        if (isset($file_path_info['host'])) {
+          // @TODO If url is absolute we skips following steps assuming that url is cdn or external etc.
+          continue;
+        }
+
+        // There might be some inline script we don't care for.
+        if (isset($file_path_info['path']) && !empty($file_path_info['path'])) {
+          $element->setAttribute($source_attr, file_create_url("public://lndr/$page_id/" . $file_path_info['path']));
+        }
+      }
+    }
+
+  }
+
+  /**
+   * Source delvery page.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *
+   * @return \Symfony\Component\HttpFoundation\BinaryFileResponse|\Symfony\Component\HttpFoundation\Response
+   * @throws \GuzzleHttp\Exception\GuzzleException
+   */
+  public function deliver(Request $request) {
+    $page_id = $request->query->get('page_id');
+    $url = $request->query->get('url');
+
+    $project = $this->findProjectByProp('id', $page_id);
+    if (!$project) {
+      return new Response(t('Error generating image.'), 404);
+    }
+    $internal_url = $project["origin_url"] . '/' . $url;
+    $uri = "public://lndr/$page_id/$url";
+    $writable = file_prepare_directory(dirname($uri), FILE_CREATE_DIRECTORY);
+    if (!$writable) {
+      return new Response('Directory is not prepared correctly.');
+    }
+    $local_file = system_retrieve_file($internal_url, $uri, $managed = FALSE);
+    if (!$local_file) {
+      return new Response('File was not downloaded correctly.');
+    }
+    return new BinaryFileResponse($uri, 200, [], TRUE);
+  }
+
+  /**
+   * Returns an object by property.
+   *
+   * @param $prop
+   * @param $value
+   *
+   * @return bool|array
+   * @throws \GuzzleHttp\Exception\GuzzleException
+   */
+  private function findProjectByProp($prop, $value) {
+    $api_token = $this->config->get('lndr_token');
+    if ($api_token == '') {
+      return FALSE;
+    }
+    $response = \Drupal::httpClient()->request('GET', LNDR_API_GET_PROJECT, [
+      'headers' => [
+        'Authorization' => 'Token token=' . $api_token,
+      ],
+    ]);
+    $result = $response->getBody();
+
+    $data = json_decode($result, TRUE);
+
+    $search_res = array_search($value, array_column(((array) $data)['projects'], $prop));
+    return (FALSE !== $search_res) ? ((array) $data)['projects'][$search_res] : FALSE;
+  }
+
 }

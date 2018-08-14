@@ -50,3 +50,6 @@ lndr.example_service:
     _controller: '\Drupal\lndr\Controller\LndrExampleController::service'
   requirements:
     _permission: 'access content'
+
+route_callbacks:
+  - '\Drupal\lndr\Routing\LndrRoutes::routes'
