@@ -361,6 +361,8 @@ class LndrController extends ControllerBase implements ContainerInjectionInterfa
       'link[rel="stylesheet"]',
       'script',
     ));
+    // Random value.
+    $hash = substr(sha1(time()),0,7);
     foreach ($html->find($selectors) as $key => $element) {
       /* @var \simple_html_dom_node $element */
       foreach (array('src', 'href', 'data-background-image') as $source_attr) {
@@ -375,7 +377,10 @@ class LndrController extends ControllerBase implements ContainerInjectionInterfa
 
         // There might be some inline script we don't care for.
         if (isset($file_path_info['path']) && !empty($file_path_info['path'])) {
-          $element->setAttribute($source_attr, file_create_url("public://lndr/$page_id/" . $file_path_info['path']));
+          $element->setAttribute(
+            $source_attr,
+            file_create_url("public://lndr/{$page_id}/{$file_path_info['path']}?{$hash}")
+          );
         }
       }
     }
@@ -383,7 +388,7 @@ class LndrController extends ControllerBase implements ContainerInjectionInterfa
   }
 
   /**
-   * Source delvery page.
+   * Source delivery page.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
    *
@@ -394,21 +399,27 @@ class LndrController extends ControllerBase implements ContainerInjectionInterfa
     $page_id = $request->query->get('page_id');
     $url = $request->query->get('url');
 
+    // @TODO CAche or stativ should be added here.
+    // There is no reason to send request for each files.
     $project = $this->findProjectByProp('id', $page_id);
     if (!$project) {
-      return new Response(t('Error generating image.'), 404);
+      return new Response(t('Error getting project.'), 404);
     }
+
     $internal_url = $project["origin_url"] . '/' . $url;
-    $uri = "public://lndr/$page_id/$url";
-    $writable = file_prepare_directory(dirname($uri), FILE_CREATE_DIRECTORY);
-    if (!$writable) {
-      return new Response('Directory is not prepared correctly.');
+    $local_uri = "public://lndr/$page_id/$url";
+
+    // In some understandable reason a system_retrieve_file missed a FILE_CREATE_DIRECTORY option,
+    // so we sould prepare directory here.
+    if(file_prepare_directory(dirname($local_uri), FILE_CREATE_DIRECTORY)){
+      if(system_retrieve_file($internal_url, $local_uri, $managed = FALSE)){
+        // @TODO Header should be added to response here.
+        return new BinaryFileResponse($local_uri, 200, [], TRUE);
+      }
+      return new Response('File has benn downloaded correctly.');
     }
-    $local_file = system_retrieve_file($internal_url, $uri, $managed = FALSE);
-    if (!$local_file) {
-      return new Response('File was not downloaded correctly.');
-    }
-    return new BinaryFileResponse($uri, 200, [], TRUE);
+
+    return new Response("Something went wrong. The file or directory doesn't loaded correctly.", 500);
   }
 
   /**
